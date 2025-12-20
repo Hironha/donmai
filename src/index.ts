@@ -165,7 +165,7 @@ export class Retry<E = unknown, F = undefined> {
           return result;
         }
 
-        if (this.delayms) {
+        if (this.delayms && i < this.attempts - 1) {
           await delay(this.delayms);
         }
       } catch (e) {
