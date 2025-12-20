@@ -1,0 +1,17 @@
+{
+  "name": "donmai",
+  "version": "0.0.1",
+  "description": "A library that expects your code to fail, but retries them for you",
+  "license": "ISC",
+  "author": "Hironha",
+  "type": "module",
+  "main": "index.js",
+  "scripts": {
+    "test": "vitest run",
+    "check:types": "tsc --noEmit"
+  },
+  "devDependencies": {
+    "vite": "7.3.0",
+    "vitest": "4.0.16"
+  }
+}
