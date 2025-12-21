@@ -1,7 +1,7 @@
 {
   "name": "donmai",
   "version": "0.0.1",
-  "description": "A library that expects your code to fail, but retries them for you",
+  "description": "A library that expects your code to fail, but helps you retry them until success",
   "license": "ISC",
   "author": "Hironha",
   "type": "module",
