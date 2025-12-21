@@ -63,11 +63,12 @@ export class RunContext {
   }
 }
 
-export class OnErrorContext<E> {
+export class OnErrorContext {
+  /** Number of the current attempt. */
   public readonly attempt: number;
-  public readonly error: E;
+  public readonly error: unknown;
 
-  constructor(attempt: number, error: E) {
+  constructor(attempt: number, error: unknown) {
     this.attempt = attempt;
     this.error = error;
   }
@@ -76,9 +77,9 @@ export class OnErrorContext<E> {
     return RunOk.empty();
   }
 
-  stop(): RunError<E>;
+  stop(): RunError<unknown>;
   stop<U>(error: U): RunError<U>;
-  stop<U>(error?: U): RunError<E | U> {
+  stop<U>(error?: U): RunError<unknown | U> {
     if (error !== undefined) {
       return new RunError(error);
     }
@@ -97,13 +98,13 @@ export type RunFnReturnType<Fn extends BaseRunAsyncFn> =
     ? InferRunOk<R>["value"]
     : InferRunOk<ReturnType<Fn>>["value"];
 
-export type OnErrorAsyncFn<E, U = E> = (
-  ctx: OnErrorContext<E>,
-) => Promise<RunResult<void, U>> | RunResult<void, U>;
+export type OnErrorAsyncFn<Fb> = (
+  ctx: OnErrorContext,
+) => Promise<RunResult<void, Fb>> | RunResult<void, Fb>;
 
-export type OnErrorFn<E, U = E> = (ctx: OnErrorContext<E>) => RunResult<void, U>;
+export type OnErrorFn<Fb> = (ctx: OnErrorContext) => RunResult<void, Fb>;
 
-export type OnErrorFnReturnType<Fn extends OnErrorAsyncFn<any, any>> =
+export type OnErrorFnReturnType<Fn extends OnErrorAsyncFn<any>> =
   ReturnType<Fn> extends Promise<infer R>
     ? InferRunError<R>["error"]
     : InferRunError<ReturnType<Fn>>["error"];
@@ -148,7 +149,7 @@ export class Retry<E = unknown, F = undefined> {
     }
   }
 
-  onError<Fn extends OnErrorFn<E, any>>(fn: Fn): Retry<OnErrorFnReturnType<Fn>, F> {
+  onError<Fn extends OnErrorFn<any>>(fn: Fn): Retry<OnErrorFnReturnType<Fn>, F> {
     const config = this.config();
     const clone = new Retry<OnErrorFnReturnType<Fn>, F>(config);
     clone.cfg.onError = fn;
@@ -211,7 +212,7 @@ export class RetryAsync<E = unknown, F = undefined> {
     }
   }
 
-  onError<Fn extends OnErrorAsyncFn<E, any>>(fn: Fn): RetryAsync<OnErrorFnReturnType<Fn>, F> {
+  onError<Fn extends OnErrorAsyncFn<any>>(fn: Fn): RetryAsync<OnErrorFnReturnType<Fn>, F> {
     const config = this.config();
     const clone = new RetryAsync<OnErrorFnReturnType<Fn>, F>(config);
     clone.cfg.onError = fn;
