@@ -1,6 +1,6 @@
 import process from "node:process";
 import { describe, expect, test } from "vitest";
-import { Retry, RunOk, RunError } from "../src/index";
+import { RetryAsync, RunOk, RunError } from "../src/index";
 
 function getRandomNumber(min: number, max: number): number {
   return Math.round(Math.random() * (max - min)) + min;
@@ -8,7 +8,7 @@ function getRandomNumber(min: number, max: number): number {
 
 describe("donmai", () => {
   test("allow manual control over retry", async () => {
-    const retry = new Retry({ attempts: 10 });
+    const retry = new RetryAsync({ attempts: 10 });
     const result = await retry.run((ctx) => {
       const rand = getRandomNumber(ctx.attempt, 10);
       if (rand < 7) {
@@ -22,7 +22,7 @@ describe("donmai", () => {
   });
 
   test("attempt counter works correctly", async () => {
-    const retry = new Retry({ attempts: 5 });
+    const retry = new RetryAsync({ attempts: 5 });
 
     const attempts: number[] = [];
     const result = await retry.run((ctx) => {
@@ -35,7 +35,7 @@ describe("donmai", () => {
   });
 
   test("fallback works", async () => {
-    const retry = new Retry({ attempts: 5 }).fallback("test");
+    const retry = new RetryAsync({ attempts: 5 }).fallback("test");
     const result = await retry.run((ctx) => ctx.retry());
 
     expect(result.ok).toBeFalsy();
@@ -44,7 +44,7 @@ describe("donmai", () => {
 
   test("allow to define custom error handling to a retry instance", async () => {
     const msg = "Cannot try more than seven times";
-    const retry = new Retry({ attempts: 10 }).onError((ctx) => {
+    const retry = new RetryAsync({ attempts: 10 }).onError((ctx) => {
       if (ctx.attempt < 7) {
         return ctx.retry();
       }
@@ -65,7 +65,7 @@ describe("donmai", () => {
   test("delay works", async () => {
     const attempts = 5;
     const delayMs = 200;
-    const retry = new Retry({ attempts, delayms: delayMs });
+    const retry = new RetryAsync({ attempts, delayms: delayMs });
 
     const start = process.hrtime.bigint();
     const result = await retry.run((ctx) => ctx.retry());

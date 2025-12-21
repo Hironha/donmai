@@ -86,24 +86,24 @@ export class OnErrorContext<E> {
   }
 }
 
-export type BaseRunFn<T = any, E = unknown> = (
+export type BaseRunAsyncFn<T = any, E = unknown> = (
   ctx: RunContext,
 ) => Promise<RunResult<T, E>> | RunResult<T, E>;
 
-export type BaseRunSyncFn<T = any, E = unknown> = (ctx: RunContext) => RunResult<T, E>;
+export type BaseRunFn<T = any, E = unknown> = (ctx: RunContext) => RunResult<T, E>;
 
-export type RunFnReturnType<Fn extends BaseRunFn> =
+export type RunFnReturnType<Fn extends BaseRunAsyncFn> =
   ReturnType<Fn> extends Promise<infer R>
     ? InferRunOk<R>["value"]
     : InferRunOk<ReturnType<Fn>>["value"];
 
-export type OnErrorFn<E, U = E> = (
+export type OnErrorAsyncFn<E, U = E> = (
   ctx: OnErrorContext<E>,
 ) => Promise<RunResult<void, U>> | RunResult<void, U>;
 
-export type OnErrorSyncFn<E, U = E> = (ctx: OnErrorContext<E>) => RunResult<void, U>;
+export type OnErrorFn<E, U = E> = (ctx: OnErrorContext<E>) => RunResult<void, U>;
 
-export type OnErrorFnReturnType<Fn extends OnErrorFn<any, any>> =
+export type OnErrorFnReturnType<Fn extends OnErrorAsyncFn<any, any>> =
   ReturnType<Fn> extends Promise<infer R>
     ? InferRunError<R>["error"]
     : InferRunError<ReturnType<Fn>>["error"];
@@ -113,89 +113,20 @@ export interface RetryConfig {
   delayms?: number;
 }
 
+interface RetryAsyncPrivateConfig<E, F> {
+  fallback: F;
+  onError?: OnErrorAsyncFn<E>;
+}
+
 interface RetryPrivateConfig<E, F> {
   fallback: F;
   onError?: OnErrorFn<E>;
-}
-
-interface RetrySyncPrivateConfig<E, F> {
-  fallback: F;
-  onError?: OnErrorSyncFn<E>;
 }
 
 const DEFAULT_ATTEMPTS = 1;
 
 function delay(ms: number): Promise<void> {
   return new Promise((res) => setTimeout(res, ms));
-}
-
-export class RetrySync<E = unknown, F = undefined> {
-  public readonly attempts: number;
-  public readonly delayms?: number;
-
-  private cfg: RetrySyncPrivateConfig<E, F>;
-
-  constructor(config: RetryConfig) {
-    this.cfg = { fallback: undefined as F };
-    this.attempts = config.attempts ?? DEFAULT_ATTEMPTS;
-    if (this.attempts <= 0) {
-      this.attempts = DEFAULT_ATTEMPTS;
-    } else if (!Number.isInteger(this.attempts)) {
-      this.attempts = Math.floor(this.attempts) || DEFAULT_ATTEMPTS;
-    }
-
-    if (config.delayms && config.delayms > 0) {
-      this.delayms = config.delayms;
-    }
-  }
-
-  onError<Fn extends OnErrorSyncFn<E, any>>(fn: Fn): RetrySync<OnErrorFnReturnType<Fn>, F> {
-    const config = this.config();
-    const clone = new RetrySync<OnErrorFnReturnType<Fn>, F>(config);
-    clone.cfg.onError = fn;
-    clone.cfg.fallback = this.cfg.fallback;
-    return clone;
-  }
-
-  fallback(fallback: E): RetrySync<E, E> {
-    const config = this.config();
-    const clone = new RetrySync<E, E>(config);
-    clone.cfg.onError = this.cfg.onError!;
-    clone.cfg.fallback = fallback;
-    return clone;
-  }
-
-  run<Fn extends BaseRunSyncFn>(fn: Fn): RunResult<RunFnReturnType<Fn>, E | F> {
-    for (let i = 0; i < this.attempts; i += 1) {
-      try {
-        const ctx = new RunContext(i + 1);
-        const result = fn(ctx);
-        if (result.ok) {
-          return result;
-        }
-
-        if (this.delayms && i < this.attempts - 1) {
-          setTimeout(() => this.run(fn), this.delayms);
-        }
-      } catch (e) {
-        if (this.cfg.onError) {
-          const ctx = new OnErrorContext(i, e as E);
-          const result = this.cfg.onError(ctx);
-          if (!result.ok) {
-            return result;
-          }
-        }
-      }
-    }
-
-    return new RunError(this.cfg.fallback);
-  }
-
-  private config(): RetryConfig {
-    const config: RetryConfig = { attempts: this.attempts };
-    if (this.delayms) config.delayms = this.delayms;
-    return config;
-  }
 }
 
 export class Retry<E = unknown, F = undefined> {
@@ -234,7 +165,76 @@ export class Retry<E = unknown, F = undefined> {
     return clone;
   }
 
-  async run<Fn extends BaseRunFn>(fn: Fn): Promise<RunResult<RunFnReturnType<Fn>, E | F>> {
+  run<Fn extends BaseRunFn>(fn: Fn): RunResult<RunFnReturnType<Fn>, E | F> {
+    for (let i = 0; i < this.attempts; i += 1) {
+      try {
+        const ctx = new RunContext(i + 1);
+        const result = fn(ctx);
+        if (result.ok) {
+          return result;
+        }
+
+        if (this.delayms && i < this.attempts - 1) {
+          setTimeout(() => this.run(fn), this.delayms);
+        }
+      } catch (e) {
+        if (this.cfg.onError) {
+          const ctx = new OnErrorContext(i, e as E);
+          const result = this.cfg.onError(ctx);
+          if (!result.ok) {
+            return result;
+          }
+        }
+      }
+    }
+
+    return new RunError(this.cfg.fallback);
+  }
+
+  private config(): RetryConfig {
+    const config: RetryConfig = { attempts: this.attempts };
+    if (this.delayms) config.delayms = this.delayms;
+    return config;
+  }
+}
+
+export class RetryAsync<E = unknown, F = undefined> {
+  public readonly attempts: number;
+  public readonly delayms?: number;
+
+  private cfg: RetryAsyncPrivateConfig<E, F>;
+
+  constructor(config: RetryConfig) {
+    this.cfg = { fallback: undefined as F };
+    this.attempts = config.attempts ?? DEFAULT_ATTEMPTS;
+    if (this.attempts <= 0) {
+      this.attempts = DEFAULT_ATTEMPTS;
+    } else if (!Number.isInteger(this.attempts)) {
+      this.attempts = Math.floor(this.attempts) || DEFAULT_ATTEMPTS;
+    }
+
+    if (config.delayms && config.delayms > 0) {
+      this.delayms = config.delayms;
+    }
+  }
+
+  onError<Fn extends OnErrorAsyncFn<E, any>>(fn: Fn): RetryAsync<OnErrorFnReturnType<Fn>, F> {
+    const config = this.config();
+    const clone = new RetryAsync<OnErrorFnReturnType<Fn>, F>(config);
+    clone.cfg.onError = fn;
+    clone.cfg.fallback = this.cfg.fallback;
+    return clone;
+  }
+
+  fallback(fallback: E): RetryAsync<E, E> {
+    const config = this.config();
+    const clone = new RetryAsync<E, E>(config);
+    clone.cfg.onError = this.cfg.onError!;
+    clone.cfg.fallback = fallback;
+    return clone;
+  }
+
+  async run<Fn extends BaseRunAsyncFn>(fn: Fn): Promise<RunResult<RunFnReturnType<Fn>, E | F>> {
     for (let i = 0; i < this.attempts; i += 1) {
       try {
         const ctx = new RunContext(i + 1);
