@@ -108,9 +108,13 @@ export type OnErrorFnReturnType<Fn extends OnErrorAsyncFn<any, any>> =
     ? InferRunError<R>["error"]
     : InferRunError<ReturnType<Fn>>["error"];
 
-export interface RetryConfig {
+export interface RetryAsyncConfig {
   attempts: number;
   delayms?: number;
+}
+
+export interface RetryConfig {
+  attempts: number;
 }
 
 interface RetryAsyncPrivateConfig<E, F> {
@@ -131,7 +135,6 @@ function delay(ms: number): Promise<void> {
 
 export class Retry<E = unknown, F = undefined> {
   public readonly attempts: number;
-  public readonly delayms?: number;
 
   private cfg: RetryPrivateConfig<E, F>;
 
@@ -142,10 +145,6 @@ export class Retry<E = unknown, F = undefined> {
       this.attempts = DEFAULT_ATTEMPTS;
     } else if (!Number.isInteger(this.attempts)) {
       this.attempts = Math.floor(this.attempts) || DEFAULT_ATTEMPTS;
-    }
-
-    if (config.delayms && config.delayms > 0) {
-      this.delayms = config.delayms;
     }
   }
 
@@ -173,10 +172,6 @@ export class Retry<E = unknown, F = undefined> {
         if (result.ok) {
           return result;
         }
-
-        if (this.delayms && i < this.attempts - 1) {
-          setTimeout(() => this.run(fn), this.delayms);
-        }
       } catch (e) {
         if (this.cfg.onError) {
           const ctx = new OnErrorContext(i, e as E);
@@ -191,10 +186,8 @@ export class Retry<E = unknown, F = undefined> {
     return new RunError(this.cfg.fallback);
   }
 
-  private config(): RetryConfig {
-    const config: RetryConfig = { attempts: this.attempts };
-    if (this.delayms) config.delayms = this.delayms;
-    return config;
+  private config(): RetryAsyncConfig {
+    return { attempts: this.attempts };
   }
 }
 
@@ -204,7 +197,7 @@ export class RetryAsync<E = unknown, F = undefined> {
 
   private cfg: RetryAsyncPrivateConfig<E, F>;
 
-  constructor(config: RetryConfig) {
+  constructor(config: RetryAsyncConfig) {
     this.cfg = { fallback: undefined as F };
     this.attempts = config.attempts ?? DEFAULT_ATTEMPTS;
     if (this.attempts <= 0) {
@@ -260,8 +253,8 @@ export class RetryAsync<E = unknown, F = undefined> {
     return new RunError(this.cfg.fallback);
   }
 
-  private config(): RetryConfig {
-    const config: RetryConfig = { attempts: this.attempts };
+  private config(): RetryAsyncConfig {
+    const config: RetryAsyncConfig = { attempts: this.attempts };
     if (this.delayms) config.delayms = this.delayms;
     return config;
   }
