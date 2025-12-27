@@ -43,7 +43,7 @@ describe("donmai", () => {
       expect(RunError.unwrap(result)).toStrictEqual("test");
     });
 
-    test("allow to define custom error handling to a retry instance", async () => {
+    test("allows defining custom error handling to a retry instance", async () => {
       const msg = "Cannot try more than seven times";
       const retry = new RetryAsync({ attempts: 10 }).onError((ctx) => {
         if (ctx.attempt < 7) {
@@ -117,7 +117,7 @@ describe("donmai", () => {
       expect(RunError.unwrap(result)).toStrictEqual("test");
     });
 
-    test("allow to define custom error handling to a retry instance", async () => {
+    test("allows defining custom error handling to a retry instance", async () => {
       const msg = "Cannot try more than seven times";
       const retry = new Retry({ attempts: 10 }).onError((ctx) => {
         if (ctx.attempt < 7) {
