@@ -45,17 +45,51 @@ export class RunError<E> {
   }
 }
 
+/**
+ * Run context used to control how a workflow behaves.
+ */
 export class RunContext {
+  /** Number of the current attempt. */
   public readonly attempt: number;
 
   constructor(attempt: number) {
     this.attempt = attempt;
   }
 
+  /**
+   * Method that returns a {@link RunError} which tells the `Retry` runner that some
+   * error occured and should try it again.
+   * @example
+   * const retry = new Retry({ attempts: 5 });
+   * // run the 5 attempts since always returns a retry
+   * const result = retry.run((ctx) => ctx.retry());
+   * expect(result).toMatchObject({
+   *   ok: false,
+   *   error: undefined
+   * });
+   */
   retry(): RunError<void> {
     return RunError.empty();
   }
 
+  /**
+   * Method that returns a {@link RunOk} which tells the `Retry` runner that the
+   * execution was successful. May accept a value as argument that is returned as
+   * result of the execution.
+   * @example
+   * const retry = new Retry({ attempts: 5 });
+   * const result = retry.run((ctx) => {
+   *   if (ctx.attempt === 2) {
+   *     return ctx.ok(ctx.attempt);
+   *   }
+   *   return ctx.retry();
+   * });
+   *
+   * expect(result).toMatchObject({
+   *   ok: true,
+   *   value: 2
+   * });
+   */
   ok(): RunOk<void>;
   ok<T>(value: T): RunOk<T>;
   ok<T>(value?: T): RunOk<T | void> {
@@ -63,6 +97,9 @@ export class RunContext {
   }
 }
 
+/**
+ * On error callback context used to control how the error handling should behave.
+ */
 export class OnErrorContext {
   /** Number of the current attempt. */
   public readonly attempt: number;
@@ -73,10 +110,58 @@ export class OnErrorContext {
     this.error = error;
   }
 
+  /**
+   * Method that returns a {@link RunOk} which tells the `Retry` to retry the
+   * workflow again.
+   * @example
+   * const retry = new Retry({ attempts: 5 }).onError((ctx) => {
+   *   if (ctx.error instanceof Error) {
+   *     console.error("Some unexpected error happened: ", ctx.error);
+   *     return ctx.retry();
+   *   }
+   *   return ctx.stop();
+   * });
+   *
+   * let attempts = 0
+   * const result = retry.run((ctx) => {
+   *   attempts += 1;
+   *   throw new Error(`Attempt ${ctx.attempt} not allowed!`);
+   * });
+   *
+   * expect(result).toMatchObject({
+   *   ok: false,
+   *   error: undefined
+   * });
+   * expect(attempts).toStrictEqual(5);
+   */
   retry(): RunOk<void> {
     return RunOk.empty();
   }
 
+  /**
+   * Method that returns a {@link RunError} which tells the `Retry` to stop the
+   * workflow. May accept a value as argument that is returned as result of the
+   * execution.
+   * @example
+   * const retry = new Retry({ attempts: 5 }).onError((ctx) => {
+   *   if (ctx.error instanceof Error) {
+   *     return ctx.stop(ctx.error.message);
+   *   }
+   *   return ctx.retry();
+   * });
+   *
+   * const result = retry.run((ctx) => {
+   *   if (ctx.attempt === 2) {
+   *     throw new Error("Unexpected attempt two")
+   *   }
+   *   return ctx.retry();
+   * });
+   *
+   * expect(result).toMatchObject({
+   *   ok: false,
+   *   error: "Unexpected attempt two"
+   * });
+   */
   stop(): RunError<unknown>;
   stop<U>(error: U): RunError<U>;
   stop<U>(error?: U): RunError<unknown | U> {
@@ -110,11 +195,20 @@ export type OnErrorFnReturnType<Fn extends OnErrorAsyncFn<any>> =
     : InferRunError<ReturnType<Fn>>["error"];
 
 export interface RetryAsyncConfig {
+  /**
+   * Amount of attempts the retry will run. Should be a positive integer.
+   */
   attempts: number;
+  /**
+   * Amount of milliseconds between each attempt. Should be a positive integer.
+   */
   delayms?: number;
 }
 
 export interface RetryConfig {
+  /**
+   * Amount of attempts the retry will run. Should be a positive integer.
+   */
   attempts: number;
 }
 
@@ -134,14 +228,31 @@ function delay(ms: number): Promise<void> {
   return new Promise((res) => setTimeout(res, ms));
 }
 
+/**
+ * A synchronous retry operator.
+ * @example
+ * const retry = new Retry({ attempts: 5 });
+ * const result = retry.run((ctx) => {
+ *   if (ctx.attempt === 5) {
+ *     return ctx.ok(ctx.attempt);
+ *   }
+ *   return ctx.retry();
+ * });
+ *
+ * expect(result).toMatchObject({
+ *   ok: true,
+ *   value: 5
+ * });
+ */
 export class Retry<E = unknown, F = undefined> {
+  /** Total amount of attempts. */
   public readonly attempts: number;
 
   private cfg: RetryPrivateConfig<E, F>;
 
   constructor(config: RetryConfig) {
     this.cfg = { fallback: undefined as F };
-    this.attempts = config.attempts ?? DEFAULT_ATTEMPTS;
+    this.attempts = config.attempts;
     if (this.attempts <= 0) {
       this.attempts = DEFAULT_ATTEMPTS;
     } else if (!Number.isInteger(this.attempts)) {
@@ -149,6 +260,30 @@ export class Retry<E = unknown, F = undefined> {
     }
   }
 
+  /**
+   * Method to configure a callback to handle errors.
+   * @returns {Retry<OnErrorFnReturnType<Fn>, F>} Returns a clone of the {@link Retry} with
+   * onError callback configured.
+   * @example
+   * const retry = new Retry({ attempts: 5 }).onError((ctx) => {
+   *   if (ctx.error instanceof Error) {
+   *     return ctx.stop(ctx.error.message);
+   *   }
+   *   return ctx.retry();
+   * });
+   *
+   * const result = retry.run((ctx) => {
+   *   if (ctx.attempt % 2 === 0) {
+   *     throw new Error("Invalid attempt value!");
+   *   }
+   *   return ctx.retry();
+   * });
+   *
+   * expect(result).toMatchObject({
+   *   ok: false,
+   *   error: "Invalid attempt value!"
+   * });
+   */
   onError<Fn extends OnErrorFn<any>>(fn: Fn): Retry<OnErrorFnReturnType<Fn>, F> {
     const config = this.config();
     const clone = new Retry<OnErrorFnReturnType<Fn>, F>(config);
@@ -157,6 +292,18 @@ export class Retry<E = unknown, F = undefined> {
     return clone;
   }
 
+  /**
+   * Method to configure a fallback value.
+   * @returns {Retry<E, E>} Returns a clone of the {@link Retry} with fallback configured.
+   * @example
+   * const retry = new Retry({ attempts: 5 }).fallback("Attempts exhausted");
+   * const result = retry.run((ctx) => ctx.retry());
+   *
+   * expect(result).toMatchObject({
+   *   ok: false,
+   *   error: "Attempts exhausted"
+   * });
+   */
   fallback(fallback: E): Retry<E, E> {
     const config = this.config();
     const clone = new Retry<E, E>(config);
@@ -165,6 +312,22 @@ export class Retry<E = unknown, F = undefined> {
     return clone;
   }
 
+  /**
+   * Method to run the received workflow.
+   * @example
+   * const retry = new Retry({ attempts: 5 });
+   * const result = retry.run((ctx) => {
+   *   if (ctx.attempt === 5) {
+   *     return ctx.ok(ctx.attempt);
+   *   }
+   *   return ctx.retry();
+   * });
+   *
+   * expect(result).toMatchObject({
+   *   ok: true,
+   *   value: 5
+   * });
+   */
   run<Fn extends BaseRunFn>(fn: Fn): RunResult<RunFnReturnType<Fn>, E | F> {
     for (let i = 0; i < this.attempts; i += 1) {
       try {
@@ -192,8 +355,27 @@ export class Retry<E = unknown, F = undefined> {
   }
 }
 
+/**
+ * An asynchronous retry operator. Mainly used together with async workflows such
+ * as IO dependent workflows.
+ * @example
+ * const retry = new RetryAsync({ attempts: 5, delayms: 200 });
+ * const result = await retry.run((ctx) => {
+ *   if (ctx.attempt === 5) {
+ *     return ctx.ok(ctx.attempt);
+ *   }
+ *   return ctx.retry();
+ * });
+ *
+ * expect(result).toMatchObject({
+ *   ok: true,
+ *   value: 5
+ * });
+ */
 export class RetryAsync<E = unknown, F = undefined> {
+  /** Total amount of attempts. */
   public readonly attempts: number;
+  /** Amount of milliseconds between each attempt. */
   public readonly delayms?: number;
 
   private cfg: RetryAsyncPrivateConfig<E, F>;
@@ -212,6 +394,31 @@ export class RetryAsync<E = unknown, F = undefined> {
     }
   }
 
+  /**
+   * Method to configure a callback to handle errors.
+   * @returns {RetryAsync<OnErrorFnReturnType<Fn>, F>} Returns a clone of the {@link RetryAsync} with
+   * onError callback configured.
+   * @example
+   * const retry = new RetryAsync({ attempts: 5, delayms: 200 })
+   *   .onError((ctx) => {
+   *     if (ctx.error instanceof Error) {
+   *       return ctx.stop(ctx.error.message);
+   *     }
+   *     return ctx.retry();
+   * });
+   *
+   * const result = await retry.run((ctx) => {
+   *   if (ctx.attempt % 2 === 0) {
+   *     throw new Error("Invalid attempt value!");
+   *   }
+   *   return ctx.retry();
+   * });
+   *
+   * expect(result).toMatchObject({
+   *   ok: false,
+   *   error: "Invalid attempt value!"
+   * });
+   */
   onError<Fn extends OnErrorAsyncFn<any>>(fn: Fn): RetryAsync<OnErrorFnReturnType<Fn>, F> {
     const config = this.config();
     const clone = new RetryAsync<OnErrorFnReturnType<Fn>, F>(config);
@@ -220,6 +427,19 @@ export class RetryAsync<E = unknown, F = undefined> {
     return clone;
   }
 
+  /**
+   * Method to configure a fallback value.
+   * @returns {RetryAsync<E, E>} Returns a clone of the {@link RetryAsync} with fallback configured.
+   * @example
+   * const retry = new RetryAsync({ attempts: 5, delayms: 200 })
+   *   .fallback("Attempts exhausted");
+   * const result = await retry.run((ctx) => ctx.retry());
+   *
+   * expect(result).toMatchObject({
+   *   ok: false,
+   *   error: "Attempts exhausted"
+   * });
+   */
   fallback(fallback: E): RetryAsync<E, E> {
     const config = this.config();
     const clone = new RetryAsync<E, E>(config);
@@ -228,6 +448,22 @@ export class RetryAsync<E = unknown, F = undefined> {
     return clone;
   }
 
+  /**
+   * Method to run the received async workflow.
+   * @example
+   * const retry = new RetryAsync({ attempts: 5, delayms: 200 });
+   * const result = await retry.run((ctx) => {
+   *   if (ctx.attempt === 5) {
+   *     return ctx.ok(ctx.attempt);
+   *   }
+   *   return ctx.retry();
+   * });
+   *
+   * expect(result).toMatchObject({
+   *   ok: true,
+   *   value: 5
+   * });
+   */
   async run<Fn extends BaseRunAsyncFn>(fn: Fn): Promise<RunResult<RunFnReturnType<Fn>, E | F>> {
     for (let i = 0; i < this.attempts; i += 1) {
       try {
