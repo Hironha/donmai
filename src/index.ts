@@ -45,6 +45,10 @@ export class RunError<E> {
   }
 }
 
+function delay(ms: number): Promise<void> {
+  return new Promise((res) => setTimeout(res, ms));
+}
+
 /**
  * Run context used to control how a workflow behaves.
  */
@@ -94,6 +98,23 @@ export class RunContext {
   ok<T>(value: T): RunOk<T>;
   ok<T>(value?: T): RunOk<T | void> {
     return new RunOk(value);
+  }
+}
+
+/**
+ * Run context used to control how a workflow behaves.
+ */
+export class RunAsyncContext extends RunContext {
+  constructor(attempt: number) {
+    super(attempt);
+  }
+
+  /**
+   * Method to delay certain amount of time.
+   * @param ms Amount of delay in milliseconds.
+   */
+  async delay(ms: number): Promise<void> {
+    await delay(Math.max(ms, 0));
   }
 }
 
@@ -173,7 +194,7 @@ export class OnErrorContext {
 }
 
 export type BaseRunAsyncFn<T = any, E = unknown> = (
-  ctx: RunContext,
+  ctx: RunAsyncContext,
 ) => Promise<RunResult<T, E>> | RunResult<T, E>;
 
 export type BaseRunFn<T = any, E = unknown> = (ctx: RunContext) => RunResult<T, E>;
@@ -223,10 +244,6 @@ interface RetryPrivateConfig<E, F> {
 }
 
 const DEFAULT_ATTEMPTS = 1;
-
-function delay(ms: number): Promise<void> {
-  return new Promise((res) => setTimeout(res, ms));
-}
 
 /**
  * A synchronous retry operator.
@@ -467,7 +484,7 @@ export class RetryAsync<E = unknown, F = undefined> {
   async run<Fn extends BaseRunAsyncFn>(fn: Fn): Promise<RunResult<RunFnReturnType<Fn>, E | F>> {
     for (let i = 0; i < this.attempts; i += 1) {
       try {
-        const ctx = new RunContext(i + 1);
+        const ctx = new RunAsyncContext(i + 1);
         const result = await fn(ctx);
         if (result.ok) {
           return result;
