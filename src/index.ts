@@ -105,10 +105,6 @@ export class RunContext {
  * Run context used to control how a workflow behaves.
  */
 export class RunAsyncContext extends RunContext {
-  constructor(attempt: number) {
-    super(attempt);
-  }
-
   /**
    * Method to delay certain amount of time.
    * @param ms Amount of delay in milliseconds.
@@ -324,7 +320,9 @@ export class Retry<E = unknown, F = undefined> {
   fallback(fallback: E): Retry<E, E> {
     const config = this.config();
     const clone = new Retry<E, E>(config);
-    clone.cfg.onError = this.cfg.onError!;
+    if (this.cfg.onError) {
+      clone.cfg.onError = this.cfg.onError;
+    }
     clone.cfg.fallback = fallback;
     return clone;
   }
@@ -460,7 +458,9 @@ export class RetryAsync<E = unknown, F = undefined> {
   fallback(fallback: E): RetryAsync<E, E> {
     const config = this.config();
     const clone = new RetryAsync<E, E>(config);
-    clone.cfg.onError = this.cfg.onError!;
+    if (this.cfg.onError) {
+      clone.cfg.onError = this.cfg.onError;
+    }
     clone.cfg.fallback = fallback;
     return clone;
   }
