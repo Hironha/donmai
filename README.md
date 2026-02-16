@@ -4,6 +4,10 @@ Donmai is a library that expects your code to fail, but stands by your side and 
 
 This library is meant to be small, so it has no third party dependencies. Also, all the code is only one file to help copy/paste into projects.
 
+### Sync
+
+The `Retry` is basically a wrapper over try/catch syntax with some utilities to easily allow controlling the workflow. If your closure is asynchronous, for example depends on a network request, prefer the `RetryAsync` variant.
+
 ```ts
 const retry = new Retry({ attempts: 5 }).onError((ctx) => {
   if (ctx.error instanceof Error) {
@@ -14,6 +18,41 @@ const retry = new Retry({ attempts: 5 }).onError((ctx) => {
 });
 
 const result = retry.run((ctx) => {
+  if (ctx.attempt < 5) {
+    return ctx.retry();
+  }
+  return ctx.ok(ctx.attempt);
+});
+
+expect(result).toMatchObject({
+  ok: true,
+  value: 5,
+});
+```
+
+### Async
+
+The `RetryAsync` is basically the sync variant with support for async closures. Also, since the most common use case for this variant is network IO, it allows configuring a automatic delay between each attempt and the `run` context provides a `delay` method to manually delay.
+
+```ts
+const retry = new RetryAsync({ attempts: 5, delayms: 200 }).onError(async (ctx) => {
+  if (ctx.error instanceof Error) {
+    console.error("Something unexpected happened: ", ctx.error);
+    return ctx.retry();
+  }
+  return ctx.stop();
+});
+
+const result = await retry.run(async (ctx) => {
+  if (ctx.attempt === 1) {
+    await ctx.delay(100);
+    return ctx.retry();
+  }
+
+  if (ctx.attempt % 3 === 0) {
+    throw new Error("An unexpected error");
+  }
+
   if (ctx.attempt < 5) {
     return ctx.retry();
   }
