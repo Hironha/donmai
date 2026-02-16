@@ -1,6 +1,6 @@
 import process from "node:process";
 import { describe, expect, test } from "vitest";
-import { RetryAsync, RunOk, RunError, Retry } from "../src/index";
+import { Retry, RetryAsync, RunError, RunOk } from "../src/index";
 
 function getRandomNumber(min: number, max: number): number {
   return Math.round(Math.random() * (max - min)) + min;

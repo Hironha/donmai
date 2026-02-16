@@ -1,6 +1,6 @@
 {
   "name": "donmai",
-  "version": "1.0.1",
+  "version": "1.0.2",
   "description": "A library that expects your code to fail, but helps you retry them until success",
   "license": "ISC",
   "author": "Hironha",
@@ -9,8 +9,8 @@
   "scripts": {
     "test": "vitest run",
     "check:types": "tsc --noEmit",
-    "check:lint": "npx @biomejs/biome lint ./src",
-    "check:fmt": "npx @biomejs/biome format ./src"
+    "check:lint": "npx @biomejs/biome lint ./src ./tests",
+    "check:fmt": "npx @biomejs/biome format ./src ./tests"
   },
   "devDependencies": {
     "@biomejs/biome": "2.3.14",
