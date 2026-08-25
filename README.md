@@ -20,7 +20,9 @@ expect(result).toMatchObject({
   ok: true,
   value: 5,
 });
+
 ```
+
 
 ### Async
 
@@ -35,10 +37,6 @@ const result = await new RetryAsync({ attempts: 5, delayms: 200 }).run(async (ct
     return ctx.retry();
   }
 
-  if (ctx.attempt % 3 === 0) {
-    throw new Error("An unexpected error");
-  }
-
   if (ctx.attempt < 5) {
     return ctx.retry();
   }
@@ -49,4 +47,57 @@ expect(result).toMatchObject({
   ok: true,
   value: 5,
 });
+```
+
+### Errors
+
+Both `Retry` and `RetryAsync` may return an error when runing the received closure. The error may be either due an unexpected exception or because the attempts exhausted.
+
+#### Unexpected Exception
+
+Here is a small example of how unexpected exceptions (uncatched `throw` inside the closure) are handled:
+
+```ts
+const result = new Retry({ attempts: 2 }).run((ctx) => {
+  if (ctx.attempt === 1) {
+    throw new Error("First attempt always fails :(")
+  }
+  return ctx.retry();
+});
+
+expect(result.ok).toBeFalsy();
+expect(result).toMatchObject({
+  ok: false,
+  error: {
+    kind: "failed",
+    attempt: 1,
+    error: new Error("First attempt always fails :(")
+  }
+});
+```
+
+
+#### Exhausted attempts
+
+Here is a small example of how exhausted attempts are handled:
+
+
+```ts
+const result = new Retry({ attempts: 2 }).run((ctx) => {
+  // oops, impossible to return ok because it's only going to retry 2 times...
+  if (ctx.attempt === 5) {
+    return ctx.ok(ctx.attempt);
+  }
+  return ctx.retry();
+});
+
+expect(result.ok).toBeFalsy();
+expect(result).toMatchObject({
+  ok: false,
+  error: {
+    kind: "exhausted",
+    attempts: 2
+  }
+});
+
 ```

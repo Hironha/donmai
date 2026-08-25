@@ -105,5 +105,24 @@ describe("donmai", () => {
       assert.deepEqual(RunError.unwrap(result), { kind: "ehxausted", attempts: 5 });
       assert.deepEqual(attempts, [1, 2, 3, 4, 5], "array should contain all attempts");
     });
+
+    test("example should work", async () => {
+      const result = await new RetryAsync({ attempts: 5, delayms: 200 }).run(async (ctx) => {
+        if (ctx.attempt === 1) {
+          // here is going to delay for (200 + 100)ms, which is the pre configured
+          // delay plus the manual delay
+          await ctx.delay(100);
+          return ctx.retry();
+        }
+
+        if (ctx.attempt < 5) {
+          return ctx.retry();
+        }
+        return ctx.ok(ctx.attempt);
+      });
+
+      assert(result.ok, "result should be ok")
+      assert.deepEqual(RunOk.unwrap(result), 5)
+    })
   });
 });
