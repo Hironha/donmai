@@ -9,15 +9,7 @@ This library is meant to be small, so it has no third party dependencies. Also, 
 The `Retry` is basically a wrapper over try/catch syntax with some utilities to easily allow controlling the workflow. If your closure is asynchronous, for example depends on a network request, prefer the `RetryAsync` variant.
 
 ```ts
-const retry = new Retry({ attempts: 5 }).onError((ctx) => {
-  if (ctx.error instanceof Error) {
-    console.error("Something unexpected happened: ", ctx.error);
-    return ctx.retry();
-  }
-  return ctx.stop();
-});
-
-const result = retry.run((ctx) => {
+const result = new Retry({ attempts: 5 }).run((ctx) => {
   if (ctx.attempt < 5) {
     return ctx.retry();
   }
@@ -32,19 +24,13 @@ expect(result).toMatchObject({
 
 ### Async
 
-The `RetryAsync` is basically the sync variant with support for async closures. Also, since the most common use case for this variant is network IO, it allows configuring a automatic delay between each attempt and the `run` context provides a `delay` method to manually delay.
+The `RetryAsync` is basically the sync variant with support for async closures. Also, since the most common use case for this variant is network IO, it allows configuring an automatic delay between each attempt and the `run` context provides a `delay` method to manually delay.
 
 ```ts
-const retry = new RetryAsync({ attempts: 5, delayms: 200 }).onError(async (ctx) => {
-  if (ctx.error instanceof Error) {
-    console.error("Something unexpected happened: ", ctx.error);
-    return ctx.retry();
-  }
-  return ctx.stop();
-});
-
-const result = await retry.run(async (ctx) => {
+const result = await new RetryAsync({ attempts: 5, delayms: 200 }).run(async (ctx) => {
   if (ctx.attempt === 1) {
+    // here is going to delay for (200 + 100)ms, which is the pre configured
+    // delay plus the manual delay
     await ctx.delay(100);
     return ctx.retry();
   }

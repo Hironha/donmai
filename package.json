@@ -1,21 +1,23 @@
 {
-  "name": "donmai",
-  "version": "1.0.2",
-  "description": "A library that expects your code to fail, but helps you retry them until success",
-  "license": "ISC",
-  "author": "Hironha",
+	"name": "donmai",
+	"version": "2.0.0",
+	"description": "A library that expects your code to fail, but helps you retry them until success",
+	"license": "ISC",
+	"author": "Hironha",
   "type": "module",
-  "main": "index.js",
-  "scripts": {
-    "test": "vitest run",
-    "check:types": "tsc --noEmit",
-    "check:lint": "npx @biomejs/biome lint ./src ./tests",
-    "check:fmt": "npx @biomejs/biome format ./src ./tests"
-  },
-  "devDependencies": {
-    "@biomejs/biome": "2.3.14",
-    "@types/node": "25.0.3",
-    "vite": "7.3.0",
-    "vitest": "4.0.16"
-  }
+	"main": "index.js",
+	"scripts": {
+		"test": "node --import tsx --test \"./tests/**/*.test.ts\"",
+		"fix:all": "npx @biomejs/biome check --write ./src/ ./tests",
+		"check:types": "tsc --noEmit",
+		"check:lint": "npx @biomejs/biome lint ./src ./tests",
+		"check:fmt": "npx @biomejs/biome format ./src ./tests",
+		"check:all": "npx @biomejs/biome check ./src ./tests && npm run check:types && npm run test"
+	},
+	"devDependencies": {
+		"@biomejs/biome": "2.3.14",
+		"@types/node": "25.0.3",
+		"typescript": "7.0.2",
+    "tsx": "4.23.12"
+	}
 }

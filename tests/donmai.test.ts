@@ -1,6 +1,8 @@
+import assert from "node:assert";
 import process from "node:process";
-import { describe, expect, test } from "vitest";
-import { Retry, RetryAsync, RunError, RunOk } from "../src/index";
+import { describe, test } from "node:test";
+
+import { Retry, RetryAsync, RunError, RunOk } from "../src/index.js";
 
 function getRandomNumber(min: number, max: number): number {
   return Math.round(Math.random() * (max - min)) + min;
@@ -18,8 +20,8 @@ describe("donmai", () => {
         return ctx.ok(rand);
       });
 
-      expect(result.ok).toBeTruthy();
-      expect(typeof RunOk.unwrap(result) === "number").toBeTruthy();
+      assert(result.ok, "result should be ok");
+      assert(typeof RunOk.unwrap(result) === "number", "result value should be a number");
     });
 
     test("attempt counter works correctly", async () => {
@@ -31,36 +33,9 @@ describe("donmai", () => {
         return ctx.retry();
       });
 
-      expect(result.ok).toBeFalsy();
-      expect(attempts).toStrictEqual([1, 2, 3, 4, 5]);
-    });
-
-    test("fallback works", async () => {
-      const retry = new RetryAsync({ attempts: 5 }).fallback("test");
-      const result = await retry.run((ctx) => ctx.retry());
-
-      expect(result.ok).toBeFalsy();
-      expect(RunError.unwrap(result)).toStrictEqual("test");
-    });
-
-    test("allows defining custom error handling to a retry instance", async () => {
-      const msg = "Cannot try more than seven times";
-      const retry = new RetryAsync({ attempts: 10 }).onError((ctx) => {
-        if (ctx.attempt < 7) {
-          return ctx.retry();
-        }
-        return ctx.stop(msg);
-      });
-
-      const result = await retry.run((ctx) => {
-        if (ctx.attempt > 7) {
-          throw new Error(msg);
-        }
-        return ctx.retry();
-      });
-
-      expect(result.ok).toBeFalsy();
-      expect(RunError.unwrap(result)).toStrictEqual(msg);
+      assert(!result.ok, "result should be error");
+      assert.deepEqual(RunError.unwrap(result), { kind: "ehxausted", attempts: 5 });
+      assert.deepEqual(attempts, [1, 2, 3, 4, 5], "array should contain all attempts");
     });
 
     test("delay works", async () => {
@@ -71,18 +46,39 @@ describe("donmai", () => {
       const start = process.hrtime.bigint();
       const result = await retry.run((ctx) => ctx.retry());
       const end = process.hrtime.bigint();
-      const elapsedMs = (end - start) / 1000n / 1000n;
+      const elapsedMs = (end - start) / BigInt(1e6);
 
-      expect(result.ok).toBeFalsy();
+      assert(!result.ok, "result should be error");
+      assert.deepEqual(RunError.unwrap(result), { kind: "ehxausted", attempts: 5 });
       // last attempt should not delay on error since there is no more attempts left
       // and can return the error directly
-      expect(elapsedMs).toBeGreaterThanOrEqual((attempts - 1) * delayMs);
-      expect(elapsedMs).toBeLessThan(attempts * delayMs);
+      assert(elapsedMs >= (attempts - 1) * delayMs, "last attempt should not delay on error");
+      assert(elapsedMs < attempts * delayMs, "total delay ~= (attempts - 1) * delay");
+    });
+
+    test("manual delay should add to pre configured delay", async () => {
+      const retry = new RetryAsync({ attempts: 2, delayms: 100 });
+      const start = process.hrtime.bigint();
+      const result = await retry.run(async (ctx) => {
+        if (ctx.attempt === 1) {
+          await ctx.delay(200);
+        }
+        return ctx.retry();
+      });
+      const end = process.hrtime.bigint();
+      const elapsedMs = (end - start) / BigInt(1e6);
+
+      assert(!result.ok, "result should be an error");
+      assert.deepEqual(RunError.unwrap(result), { kind: "ehxausted", attempts: 2 });
+      assert(
+        elapsedMs >= 200 + 100,
+        "total delay should be pre configured delay plus manual delay",
+      );
     });
   });
 
   describe("sync", () => {
-    test("allow manual control over retry", async () => {
+    test("allow manual control over retry", () => {
       const retry = new Retry({ attempts: 10 });
       const result = retry.run((ctx) => {
         const rand = getRandomNumber(ctx.attempt, 10);
@@ -92,11 +88,11 @@ describe("donmai", () => {
         return ctx.ok(rand);
       });
 
-      expect(result.ok).toBeTruthy();
-      expect(typeof RunOk.unwrap(result) === "number").toBeTruthy();
+      assert(result.ok, "result should be ok");
+      assert(typeof RunOk.unwrap(result) === "number", "result value should be a number");
     });
 
-    test("attempt counter works correctly", async () => {
+    test("attempt counter works correctly", () => {
       const retry = new Retry({ attempts: 5 });
 
       const attempts: number[] = [];
@@ -105,36 +101,9 @@ describe("donmai", () => {
         return ctx.retry();
       });
 
-      expect(result.ok).toBeFalsy();
-      expect(attempts).toStrictEqual([1, 2, 3, 4, 5]);
-    });
-
-    test("fallback works", async () => {
-      const retry = new Retry({ attempts: 5 }).fallback("test");
-      const result = retry.run((ctx) => ctx.retry());
-
-      expect(result.ok).toBeFalsy();
-      expect(RunError.unwrap(result)).toStrictEqual("test");
-    });
-
-    test("allows defining custom error handling to a retry instance", async () => {
-      const msg = "Cannot try more than seven times";
-      const retry = new Retry({ attempts: 10 }).onError((ctx) => {
-        if (ctx.attempt < 7) {
-          return ctx.retry();
-        }
-        return ctx.stop(msg);
-      });
-
-      const result = retry.run((ctx) => {
-        if (ctx.attempt > 7) {
-          throw new Error(msg);
-        }
-        return ctx.retry();
-      });
-
-      expect(result.ok).toBeFalsy();
-      expect(RunError.unwrap(result)).toStrictEqual(msg);
+      assert(!result.ok, "result should be error");
+      assert.deepEqual(RunError.unwrap(result), { kind: "ehxausted", attempts: 5 });
+      assert.deepEqual(attempts, [1, 2, 3, 4, 5], "array should contain all attempts");
     });
   });
 });
